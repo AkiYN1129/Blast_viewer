@@ -370,21 +370,81 @@ def tsv_from_rows(rows: List[Dict[str, Any]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _extract_match_seq(match_line_raw: str, expected_len: int) -> str:
+    stripped = match_line_raw.rstrip("\n")
+    if stripped.strip() == "":
+        return " " * expected_len
+    core = stripped.strip()
+    if len(core) < expected_len:
+        return core.ljust(expected_len)
+    return core[:expected_len]
+
+
+def _format_alignment_triplet(diff: Dict[str, Any]) -> str:
+    query_seq = str(diff.get("query_seq", ""))
+    sbjct_seq = str(diff.get("sbjct_seq", ""))
+    seq_len = max(len(query_seq), len(sbjct_seq))
+    query_seq = query_seq.ljust(seq_len)
+    sbjct_seq = sbjct_seq.ljust(seq_len)
+    match_seq = _extract_match_seq(str(diff.get("match_line_raw", "")), seq_len)
+
+    query_start = str(diff.get("query_start", ""))
+    query_end = str(diff.get("query_end", ""))
+    sbjct_start = str(diff.get("sbjct_start", ""))
+    sbjct_end = str(diff.get("sbjct_end", ""))
+
+    start_w = max(len(query_start), len(sbjct_start), 1)
+    end_w = max(len(query_end), len(sbjct_end), 1)
+    left_label_w = 5  # len("Sbjct")
+    mid_indent = " " * (left_label_w + 2 + start_w + 2)
+
+    query_line = f"Query  {query_start:>{start_w}}  {query_seq}  {query_end:>{end_w}}"
+    match_line = f"{mid_indent}{match_seq}"
+    sbjct_line = f"Sbjct  {sbjct_start:>{start_w}}  {sbjct_seq}  {sbjct_end:>{end_w}}"
+    return "\n".join([query_line, match_line, sbjct_line])
+
+
+def monitor_text_from_records(
+    merged_dict: Dict[str, Dict[str, Any]],
+    pickup_fields: List[str],
+) -> str:
+    blocks: List[str] = []
+    scalar_fields = [field for field in pickup_fields if field != "DIFF"]
+
+    for accession, record in merged_dict.items():
+        lines = [f"[{accession}]"]
+        for field in scalar_fields:
+            lines.append(f"{field}: {record.get(field, '')}")
+
+        diffs = record.get("DIFF", [])
+        if diffs:
+            for idx, diff in enumerate(diffs, start=1):
+                lines.append(f"--- alignment {idx} ---")
+                lines.append(_format_alignment_triplet(diff))
+        else:
+            lines.append("(alignment not found)")
+        blocks.append("\n".join(lines))
+
+    return "\n\n".join(blocks) + "\n"
+
+
 def render_output(
     merged_dict: Dict[str, Dict[str, Any]],
     output_cfg: Dict[str, Any],
     display_cfg: Dict[str, Any],
 ) -> str:
-    mode = output_cfg.get("mode", "table")
+    mode = str(output_cfg.get("mode", "table")).lower()
     pickup_fields = display_cfg.get("pickup_fields", SUMMARY_FIELD_ORDER)
     diff_fields = display_cfg.get("diff_fields", [])
 
     if mode == "table":
         rows = build_table_rows(merged_dict, pickup_fields, diff_fields)
         return tsv_from_rows(rows)
-    if mode == "text":
+    if mode in {"text", "txt"}:
         projected = project_for_text(merged_dict, pickup_fields, diff_fields)
         return json.dumps(projected, ensure_ascii=False, indent=2) + "\n"
+    if mode == "monitor":
+        return monitor_text_from_records(merged_dict, pickup_fields)
     raise BlastParseError(f"未対応の output.mode です: {mode!r}")
 
 

@@ -1,7 +1,7 @@
 input:
   blast_txt: "HsKCNE1_TM_nr_blastp.txt"
 output:
-  mode: "text"   # table or text
+  mode: "txt"   # table / txt / monitor
   path: "result.txt"
 parse:
   summary_section:
