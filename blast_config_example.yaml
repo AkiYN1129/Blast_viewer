@@ -1,0 +1,27 @@
+input:
+  blast_txt: "HsKCNE1_TM_nr_blastp.txt"
+output:
+  mode: "text"   # table or text
+  path: "result.txt"
+parse:
+  summary_section:
+    start_keyword: "Description"
+    end_keyword: "Alignments:"
+    key_field: "accession"
+  alignment_section:
+    start_keyword: "Alignments:"
+    sequence_id_prefix: "Sequence ID:"
+    query_prefix: "Query"
+    sbjct_prefix: "Sbjct"
+display:
+  pickup_fields:
+    - accession
+    - description
+    - scientific_name
+    - evalue
+    - percent_ident
+    - DIFF
+  diff_fields:
+    - query_seq
+    - sbjct_seq
+    - match_line_raw
